@@ -794,10 +794,10 @@ function initTextures() {
 // ===================================================================
 // Geometry / constants
 // ===================================================================
-const PHONE_W = 3.1;
-const PHONE_H = 6.7;
-const PHONE_D = 0.48;
-const CORNER_R = 0.36;
+const PHONE_W = 3.0;
+const PHONE_H = 6.3;
+const PHONE_D = 0.3;
+const CORNER_R = 0.42;
 
 const LAYERS = [
   { name: 'Cover Glass',    color: 0xeaf2fa, um: 650, opacity: 0.14, metal: 0.0, rough: 0.04, trans: 0.95, ior: 1.52, clear: 0.4 },
@@ -984,51 +984,43 @@ const WALLPAPER_FRAG = `
 function buildHero(container) {
   initTextures();
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x08080e);
+  scene.background = new THREE.Color(0x07070c);
 
   const renderer = makeRenderer(container);
-  makeEnvironment(renderer, scene, 0.75);
-  renderer.toneMappingExposure = 0.92;
+  makeEnvironment(renderer, scene, 0.85);
+  renderer.toneMappingExposure = 0.95;
 
-  const camera = new THREE.PerspectiveCamera(28, container.clientWidth / container.clientHeight, 0.05, 100);
-  camera.position.set(3.2, 1.6, 8.5);
+  const camera = new THREE.PerspectiveCamera(30, container.clientWidth / container.clientHeight, 0.05, 200);
+  camera.position.set(3.8, 1.8, 7.8);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.06;
-  controls.rotateSpeed = 0.8;
-  controls.zoomSpeed = 0.9;
-  controls.panSpeed = 0.6;
-  controls.minDistance = 2.5;
-  controls.maxDistance = 30;
-  controls.target.set(0, 0.1, 0);
+  controls.dampingFactor = 0.09;
+  controls.rotateSpeed = 0.7;
+  controls.zoomSpeed = 0.8;
+  controls.panSpeed = 0.55;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 60;
   controls.enablePan = true;
+  controls.target.set(0, 0, 0);
 
   studioLights(scene);
-  // Soft rect lights (simulate softbox)
-  const rect1 = new THREE.DirectionalLight(0xfff6e6, 0.4);
-  rect1.position.set(0, 6, 8); scene.add(rect1);
 
-  // ------- backdrop (soft radial) -------
+  // backdrop
   {
-    const geo = new THREE.SphereGeometry(40, 32, 32);
+    const geo = new THREE.SphereGeometry(60, 32, 32);
     const mat = new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      depthWrite: false,
+      side: THREE.BackSide, depthWrite: false,
       vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
       fragmentShader: `
         varying vec3 vP;
         void main(){
           vec3 n = normalize(vP);
           float y = n.y * 0.5 + 0.5;
-          vec3 top = vec3(0.02, 0.02, 0.04);
-          vec3 mid = vec3(0.06, 0.06, 0.09);
-          vec3 bot = vec3(0.01, 0.01, 0.02);
-          vec3 c = mix(bot, mid, smoothstep(0.0, 0.5, y));
-          c = mix(c, top, smoothstep(0.5, 1.0, y));
-          // central soft warmth
+          vec3 c = mix(vec3(0.008,0.008,0.016), vec3(0.045,0.048,0.068), smoothstep(0.0, 0.6, y));
+          c = mix(c, vec3(0.015,0.016,0.025), smoothstep(0.6, 1.0, y));
           float d = length(n.xy);
-          c += vec3(0.05, 0.04, 0.03) * smoothstep(0.8, 0.0, d);
+          c += vec3(0.04,0.03,0.025) * smoothstep(0.7, 0.0, d);
           gl_FragColor = vec4(c, 1.0);
         }
       `,
@@ -1036,269 +1028,325 @@ function buildHero(container) {
     scene.add(new THREE.Mesh(geo, mat));
   }
 
-  // ------- floor (matte dark, slight reflection) -------
-  const floorGeo = new THREE.CircleGeometry(12, 64);
-  floorGeo.rotateX(-Math.PI / 2);
-  const floorMat = new THREE.MeshPhysicalMaterial({
-    color: 0x0a0a10,
-    metalness: 0.2,
-    roughness: 0.75,
-    clearcoat: 0.4,
-    clearcoatRoughness: 0.65,
-  });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.position.y = -2.6;
+  // floor
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(14, 64).rotateX(-Math.PI/2),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x08080e, metalness: 0.25, roughness: 0.7,
+      clearcoat: 0.3, clearcoatRoughness: 0.7,
+    })
+  );
+  floor.position.y = -2.4;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // contact shadow (soft ellipse under phone)
-  const csMat = new THREE.MeshBasicMaterial({
-    map: TEX.contactShadow, transparent: true, opacity: 0.85, depthWrite: false,
-  });
-  const csGeo = new THREE.PlaneGeometry(5.2, 7.5);
-  csGeo.rotateX(-Math.PI / 2);
-  const contactShadow = new THREE.Mesh(csGeo, csMat);
-  contactShadow.position.y = -2.59;
-  scene.add(contactShadow);
+  // contact shadow
+  const csMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 7.2).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({ map: TEX.contactShadow, transparent: true, opacity: 0.88, depthWrite: false })
+  );
+  csMesh.position.y = -2.39;
+  scene.add(csMesh);
 
-  // ------- PHONE -------
+  // ====== PHONE ======
   const phone = new THREE.Group();
   scene.add(phone);
 
-  // Body: titanium brushed
-  const bodyGeo = new RoundedBoxGeometry(PHONE_W, PHONE_H, PHONE_D, 12, CORNER_R);
+  const FRONT_Z = PHONE_D / 2;
+  const BACK_Z = -PHONE_D / 2;
+
+  // set UV repeat for brushed normal on body surfaces
+  TEX.brushedNormal.repeat.set(1.5, 6);
+  TEX.titaniumRough.repeat.set(3, 3);
+  TEX.glassRough.repeat.set(1, 2);
+  TEX.glassNormal.repeat.set(1, 2);
+
+  // Titanium frame material
   const titaniumMat = new THREE.MeshPhysicalMaterial({
-    color: 0x2d2f36,
+    color: 0x4a4d54,
     metalness: 1.0,
-    roughness: 0.42,
+    roughness: 0.48,
     roughnessMap: TEX.titaniumRough,
     normalMap: TEX.brushedNormal,
-    normalScale: new THREE.Vector2(0.15, 0.15),
-    envMapIntensity: 1.1,
+    normalScale: new THREE.Vector2(0.14, 0.14),
+    envMapIntensity: 0.95,
   });
-  // set uv repeat for brushed lines oriented vertically
-  TEX.brushedNormal.repeat.set(2, 8);
-  TEX.titaniumRough.repeat.set(4, 4);
 
+  // Body — single rounded box (titanium frame + back)
+  const bodyGeo = new RoundedBoxGeometry(PHONE_W, PHONE_H, PHONE_D, 8, CORNER_R);
   const body = new THREE.Mesh(bodyGeo, titaniumMat);
   body.castShadow = true;
   body.receiveShadow = true;
   phone.add(body);
 
-  // Inner screen recess (simulated via slightly darker plate behind screen)
-  const recessShape = roundedRectShape(PHONE_W - 0.14, PHONE_H - 0.14, CORNER_R - 0.07);
-  const recessGeo = new THREE.ShapeGeometry(recessShape);
-  const recessMat = new THREE.MeshStandardMaterial({ color: 0x05050a, metalness: 0.3, roughness: 0.6 });
-  const recess = new THREE.Mesh(recessGeo, recessMat);
-  recess.position.z = PHONE_D / 2 + 0.001;
-  phone.add(recess);
+  // ------- FRONT: bezel + screen + glass -------
+  // Bezel plate (matte black, rounded rect slightly smaller than body)
+  const bezelShape = roundedRectShape(PHONE_W - 0.045, PHONE_H - 0.045, CORNER_R - 0.025);
+  const bezelMat = new THREE.MeshStandardMaterial({
+    color: 0x02020a, metalness: 0.15, roughness: 0.78,
+  });
+  const bezel = new THREE.Mesh(new THREE.ShapeGeometry(bezelShape), bezelMat);
+  bezel.position.z = FRONT_Z + 0.003;
+  phone.add(bezel);
 
-  // Screen (live wallpaper)
-  const screenGeo = new THREE.PlaneGeometry(PHONE_W - 0.22, PHONE_H - 0.22);
+  // Screen (OLED wallpaper) — inside bezel
   const wpMat = new THREE.ShaderMaterial({
     uniforms: { u_time: { value: 0 } },
     vertexShader: WALLPAPER_VERT,
     fragmentShader: WALLPAPER_FRAG,
   });
-  const screen = new THREE.Mesh(screenGeo, wpMat);
-  screen.position.z = PHONE_D / 2 + 0.005;
+  const screenShape = roundedRectShape(PHONE_W - 0.28, PHONE_H - 0.28, CORNER_R - 0.14);
+  const screen = new THREE.Mesh(new THREE.ShapeGeometry(screenShape), wpMat);
+  screen.position.z = FRONT_Z + 0.010;
   phone.add(screen);
 
-  // Cover glass — anti-glare matte finish, dimmer reflections
-  const glassGeo = new THREE.PlaneGeometry(PHONE_W - 0.14, PHONE_H - 0.14);
+  // Cover glass — full front covered, rounded rect, matte anti-glare
+  const glassShape = roundedRectShape(PHONE_W - 0.045, PHONE_H - 0.045, CORNER_R - 0.025);
   const glassMat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     metalness: 0.0,
-    roughness: 0.18,
+    roughness: 0.22,
     roughnessMap: TEX.glassRough,
     normalMap: TEX.glassNormal,
     normalScale: new THREE.Vector2(0.02, 0.02),
-    transmission: 0.85,
-    thickness: 0.04,
+    transmission: 0.82,
+    thickness: 0.03,
     ior: 1.52,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.22,
-    envMapIntensity: 0.45,
+    clearcoat: 0.45,
+    clearcoatRoughness: 0.28,
+    envMapIntensity: 0.35,
     transparent: true,
+    side: THREE.FrontSide,
   });
-  TEX.glassRough.repeat.set(1, 2);
-  TEX.glassNormal.repeat.set(1, 2);
-  const glass = new THREE.Mesh(glassGeo, glassMat);
-  glass.position.z = PHONE_D / 2 + 0.012;
+  const glass = new THREE.Mesh(new THREE.ShapeGeometry(glassShape), glassMat);
+  glass.position.z = FRONT_Z + 0.018;
   phone.add(glass);
 
-  // Punch-hole camera
-  const holeRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.08, 0.115, 48),
-    new THREE.MeshPhysicalMaterial({ color: 0x1a1a22, metalness: 0.9, roughness: 0.3 })
+  // Punch-hole front camera (above glass)
+  const punchHoleY = PHONE_H / 2 - 0.48;
+  const punchRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.075, 0.095, 48),
+    new THREE.MeshStandardMaterial({ color: 0x111118, metalness: 0.8, roughness: 0.35 })
   );
-  holeRing.position.set(0, PHONE_H / 2 - 0.42, PHONE_D / 2 + 0.018);
-  phone.add(holeRing);
-  const holeInner = new THREE.Mesh(
-    new THREE.CircleGeometry(0.08, 48),
-    new THREE.MeshPhysicalMaterial({ color: 0x050510, metalness: 0.2, roughness: 0.35, clearcoat: 1.0, clearcoatRoughness: 0.1 })
-  );
-  holeInner.position.set(0, PHONE_H / 2 - 0.42, PHONE_D / 2 + 0.019);
-  phone.add(holeInner);
+  punchRing.position.set(0, punchHoleY, FRONT_Z + 0.024);
+  phone.add(punchRing);
 
-  // ------- BACK SIDE -------
-  // Back plate (same titanium)
-  // (body already covers it; add camera module)
-
-  const camBump = new THREE.Group();
-  camBump.position.set(-PHONE_W / 2 + 1.1, PHONE_H / 2 - 1.25, -PHONE_D / 2);
-  camBump.rotation.x = Math.PI; // flip to face back
-  phone.add(camBump);
-
-  // Camera bump plate
-  const bumpPlate = new THREE.Mesh(
-    new RoundedBoxGeometry(1.5, 1.85, 0.18, 6, 0.22),
+  const punchInner = new THREE.Mesh(
+    new THREE.CircleGeometry(0.075, 48),
     new THREE.MeshPhysicalMaterial({
-      color: 0x15161c, metalness: 0.95, roughness: 0.42,
-      roughnessMap: TEX.backRough,
-      normalMap: TEX.brushedNormal,
-      normalScale: new THREE.Vector2(0.06, 0.06),
+      color: 0x04040c, metalness: 0.3, roughness: 0.3,
+      clearcoat: 1.0, clearcoatRoughness: 0.08,
     })
   );
-  bumpPlate.castShadow = true;
-  camBump.add(bumpPlate);
+  punchInner.position.set(0, punchHoleY, FRONT_Z + 0.025);
+  phone.add(punchInner);
 
-  // Three lenses — detailed with multiple layers
-  function addLens(lp) {
-    const g = new THREE.Group();
-    g.position.set(lp.x, lp.y, 0.15);
-    camBump.add(g);
-
-    // outer housing cylinder
-    const housing = new THREE.Mesh(
-      new THREE.CylinderGeometry(lp.r + 0.055, lp.r + 0.055, 0.14, 48),
-      new THREE.MeshPhysicalMaterial({ color: 0x070710, metalness: 0.85, roughness: 0.3 })
-    );
-    housing.rotation.x = Math.PI / 2;
-    g.add(housing);
-
-    // brushed metal ring
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(lp.r + 0.015, 0.016, 16, 48),
-      new THREE.MeshPhysicalMaterial({
-        color: 0x9ea4ae, metalness: 1.0, roughness: 0.22,
-        normalMap: TEX.brushedNormal, normalScale: new THREE.Vector2(0.1, 0.1),
-      })
-    );
-    ring.position.z = 0.08;
-    g.add(ring);
-
-    // lens front glass — tinted
-    const lensGlass = new THREE.Mesh(
-      new THREE.CircleGeometry(lp.r, 48),
-      new THREE.MeshPhysicalMaterial({
-        color: 0x0a0e1e,
-        metalness: 0.1, roughness: 0.04,
-        transmission: 0.4, ior: 1.75, thickness: 0.4,
-        clearcoat: 1.0, clearcoatRoughness: 0.02,
-        envMapIntensity: 1.4,
-      })
-    );
-    lensGlass.position.z = 0.082;
-    g.add(lensGlass);
-
-    // aperture blades hint
-    const ap = new THREE.Mesh(
-      new THREE.CircleGeometry(lp.r * 0.35, 36),
-      new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.9, roughness: 0.15 })
-    );
-    ap.position.z = 0.084;
-    g.add(ap);
-
-    // small inner reflection dot
-    const dot = new THREE.Mesh(
-      new THREE.CircleGeometry(lp.r * 0.08, 24),
-      new THREE.MeshBasicMaterial({ color: 0x334466 })
-    );
-    dot.position.set(-lp.r * 0.2, lp.r * 0.2, 0.086);
-    g.add(dot);
-  }
-
-  addLens({ x: -0.37, y: 0.6, r: 0.27 });
-  addLens({ x:  0.37, y: 0.6, r: 0.27 });
-  addLens({ x:  0.0,  y: -0.3, r: 0.3 });
-
-  // flash
-  const flash = new THREE.Mesh(
-    new THREE.CircleGeometry(0.07, 24),
-    new THREE.MeshStandardMaterial({ color: 0xfff2d0, emissive: 0xfff2d0, emissiveIntensity: 0.15, metalness: 0.3, roughness: 0.25 })
+  // tiny pupil reflection
+  const punchPupil = new THREE.Mesh(
+    new THREE.CircleGeometry(0.028, 32),
+    new THREE.MeshBasicMaterial({ color: 0x1a2238 })
   );
-  flash.position.set(0.52, -0.72, 0.12);
-  camBump.add(flash);
+  punchPupil.position.set(0, punchHoleY, FRONT_Z + 0.026);
+  phone.add(punchPupil);
+
+  // ====== BACK: camera bump with pierced holes ======
+  const bumpW = 1.32, bumpH = 1.58, bumpCornerR = 0.24, bumpDepth = 0.095;
+  const bumpLocalLenses = [
+    { x: -0.30, y:  0.36, r: 0.225 },
+    { x:  0.30, y:  0.36, r: 0.225 },
+    { x:  0.00, y: -0.30, r: 0.25 },
+  ];
+
+  const bumpShape = roundedRectShape(bumpW, bumpH, bumpCornerR);
+  bumpLocalLenses.forEach(lp => {
+    const hole = new THREE.Path();
+    hole.absarc(lp.x, lp.y, lp.r, 0, Math.PI * 2, true);
+    bumpShape.holes.push(hole);
+  });
+
+  const bumpGeo = new THREE.ExtrudeGeometry(bumpShape, {
+    depth: bumpDepth,
+    bevelEnabled: true, bevelSegments: 4,
+    bevelSize: 0.018, bevelThickness: 0.018,
+    curveSegments: 28,
+  });
+  // no geometry flip — we'll position the group so extrusion protrudes outward
+
+  const bumpMat = new THREE.MeshPhysicalMaterial({
+    color: 0x26282e,
+    metalness: 1.0,
+    roughness: 0.4,
+    roughnessMap: TEX.titaniumRough,
+    normalMap: TEX.brushedNormal,
+    normalScale: new THREE.Vector2(0.1, 0.1),
+    envMapIntensity: 0.95,
+  });
+
+  // bumpGroup positioned so extrusion base (local z=0) is at the outermost point,
+  // and extrusion top (local z=+bumpDepth) is flush with the body back face.
+  const bumpGroup = new THREE.Group();
+  bumpGroup.position.set(-PHONE_W / 2 + 0.88, PHONE_H / 2 - 1.15, BACK_Z - bumpDepth + 0.003);
+  phone.add(bumpGroup);
+
+  const bumpMesh = new THREE.Mesh(bumpGeo, bumpMat);
+  bumpMesh.castShadow = true;
+  bumpMesh.receiveShadow = true;
+  bumpGroup.add(bumpMesh);
+
+  // Materials for lens stack
+  const tunnelMat = new THREE.MeshStandardMaterial({
+    color: 0x030307, metalness: 0.7, roughness: 0.45, side: THREE.DoubleSide,
+  });
+  const lensRingMat = new THREE.MeshPhysicalMaterial({
+    color: 0x9aa0aa, metalness: 1.0, roughness: 0.22,
+    normalMap: TEX.brushedNormal, normalScale: new THREE.Vector2(0.12, 0.12),
+  });
+  const lensGlassMat = new THREE.MeshPhysicalMaterial({
+    color: 0x060a14, metalness: 0.12, roughness: 0.05,
+    transmission: 0.5, ior: 1.78, thickness: 0.4,
+    clearcoat: 1.0, clearcoatRoughness: 0.03,
+    envMapIntensity: 1.2,
+    side: THREE.DoubleSide,
+  });
+  const apertureMat = new THREE.MeshStandardMaterial({
+    color: 0x000000, metalness: 0.9, roughness: 0.18, side: THREE.DoubleSide,
+  });
+  const deepMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+
+  bumpLocalLenses.forEach(lp => {
+    // tunnel wall — spans full bump depth
+    const tunnel = new THREE.Mesh(
+      new THREE.CylinderGeometry(lp.r, lp.r, bumpDepth + 0.01, 48, 1, true),
+      tunnelMat
+    );
+    tunnel.rotation.x = Math.PI / 2;
+    tunnel.position.set(lp.x, lp.y, bumpDepth / 2);
+    bumpGroup.add(tunnel);
+
+    // outer metallic ring — sits on the outer surface (local z=0), slightly protruding
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(lp.r - 0.008, 0.014, 14, 48),
+      lensRingMat
+    );
+    ring.position.set(lp.x, lp.y, -0.002);
+    bumpGroup.add(ring);
+
+    // lens front element — recessed 0.028 into tunnel
+    const lens = new THREE.Mesh(
+      new THREE.CircleGeometry(lp.r - 0.025, 48),
+      lensGlassMat
+    );
+    lens.position.set(lp.x, lp.y, 0.028);
+    bumpGroup.add(lens);
+
+    // aperture — deeper
+    const ap = new THREE.Mesh(
+      new THREE.CircleGeometry(lp.r * 0.5, 36),
+      apertureMat
+    );
+    ap.position.set(lp.x, lp.y, 0.048);
+    bumpGroup.add(ap);
+
+    // deep black center
+    const deep = new THREE.Mesh(
+      new THREE.CircleGeometry(lp.r * 0.22, 24),
+      deepMat
+    );
+    deep.position.set(lp.x, lp.y, 0.068);
+    bumpGroup.add(deep);
+  });
+
+  // Flash + LiDAR on the bump's outer surface (local z=0)
+  const flash = new THREE.Mesh(
+    new THREE.CircleGeometry(0.045, 32),
+    new THREE.MeshStandardMaterial({ color: 0xfff0c8, metalness: 0.3, roughness: 0.25, side: THREE.DoubleSide })
+  );
+  flash.position.set(0.48, -0.55, -0.002);
+  bumpGroup.add(flash);
 
   const lidar = new THREE.Mesh(
-    new THREE.CircleGeometry(0.05, 24),
-    new THREE.MeshStandardMaterial({ color: 0x181822, metalness: 0.7, roughness: 0.35 })
+    new THREE.CircleGeometry(0.035, 32),
+    new THREE.MeshStandardMaterial({ color: 0x0b0d16, metalness: 0.75, roughness: 0.3, side: THREE.DoubleSide })
   );
-  lidar.position.set(-0.52, -0.72, 0.12);
-  camBump.add(lidar);
+  lidar.position.set(-0.48, -0.55, -0.002);
+  bumpGroup.add(lidar);
 
-  // Side buttons
+  // ====== SIDE BUTTONS ======
   const btnMat = new THREE.MeshPhysicalMaterial({
-    color: 0x2d2f36, metalness: 1.0, roughness: 0.38,
+    color: 0x40434b, metalness: 1.0, roughness: 0.42,
     normalMap: TEX.brushedNormal, normalScale: new THREE.Vector2(0.08, 0.08),
   });
-  const power = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.7, 0.12, 3, 0.02), btnMat);
-  power.position.set(PHONE_W / 2 + 0.001, 0.4, 0);
+  const power = new THREE.Mesh(new RoundedBoxGeometry(0.04, 0.62, 0.09, 3, 0.015), btnMat);
+  power.position.set(PHONE_W / 2 + 0.003, 0.55, 0);
   phone.add(power);
   for (let i = 0; i < 2; i++) {
-    const v = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.42, 0.12, 3, 0.02), btnMat);
-    v.position.set(-PHONE_W / 2 - 0.001, 0.9 - i * 0.55, 0);
+    const v = new THREE.Mesh(new RoundedBoxGeometry(0.04, 0.38, 0.09, 3, 0.015), btnMat);
+    v.position.set(-PHONE_W / 2 - 0.003, 0.85 - i * 0.52, 0);
     phone.add(v);
   }
 
-  // Speaker + USB-C + mic
-  const speakerDots = new THREE.Group();
-  for (let i = 0; i < 8; i++) {
-    const d = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.016, 0.016, 0.04, 12),
-      new THREE.MeshStandardMaterial({ color: 0x030306, metalness: 0.3, roughness: 0.7 })
-    );
-    d.rotation.x = Math.PI / 2;
-    d.position.set(0.3 + i * 0.08, 0, 0);
-    speakerDots.add(d);
-  }
-  speakerDots.position.set(-0.3, -PHONE_H / 2 + 0.001, 0);
-  speakerDots.rotation.x = Math.PI / 2;
-  phone.add(speakerDots);
-
-  const usb = new THREE.Mesh(
-    new RoundedBoxGeometry(0.42, 0.09, 0.15, 3, 0.03),
-    new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.8, roughness: 0.35 })
+  // SIM tray line (thin seam) on left side
+  const simSeam = new THREE.Mesh(
+    new RoundedBoxGeometry(0.02, 0.28, 0.085, 2, 0.005),
+    new THREE.MeshStandardMaterial({ color: 0x2a2d33, metalness: 0.8, roughness: 0.5 })
   );
-  usb.position.set(0.3, -PHONE_H / 2, 0);
-  usb.rotation.x = Math.PI / 2;
-  phone.add(usb);
+  simSeam.position.set(-PHONE_W / 2 - 0.002, -1.4, 0);
+  phone.add(simSeam);
 
-  // Initial slight tilt
-  phone.rotation.y = -0.35;
-  phone.rotation.x = 0.08;
+  // ====== BOTTOM EDGE: speaker grille, USB-C, mic ======
+  const bottomY = -PHONE_H / 2;
 
-  // --- dust motes ---
-  const dustN = 150;
-  const dustGeo = new THREE.BufferGeometry();
-  const dustPos = new Float32Array(dustN * 3);
-  for (let i = 0; i < dustN; i++) {
-    dustPos[i * 3] = (Math.random() - 0.5) * 12;
-    dustPos[i * 3 + 1] = Math.random() * 6 - 2;
-    dustPos[i * 3 + 2] = (Math.random() - 0.5) * 8;
+  // Speaker dots row (right of center)
+  for (let i = 0; i < 7; i++) {
+    const d = new THREE.Mesh(
+      new THREE.CircleGeometry(0.022, 16),
+      new THREE.MeshBasicMaterial({ color: 0x010103 })
+    );
+    d.rotation.x = -Math.PI / 2;
+    d.position.set(0.55 + i * 0.075, bottomY + 0.001, 0);
+    phone.add(d);
   }
-  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
-    size: 0.012, color: 0x8090b0, transparent: true, opacity: 0.35,
-    depthWrite: false, blending: THREE.AdditiveBlending,
-  }));
-  scene.add(dust);
 
-  const { composer } = makePost(renderer, scene, camera, container, { bloomStrength: 0.18, bloomRadius: 0.4, bloomThresh: 0.92 });
+  // USB-C port (centered, slight left)
+  const usbOuter = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 0.085).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x04040a, metalness: 0.55, roughness: 0.5 })
+  );
+  usbOuter.position.set(-0.05, bottomY + 0.001, 0);
+  phone.add(usbOuter);
+  const usbInner = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.36, 0.055).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x080810, metalness: 0.7, roughness: 0.3 })
+  );
+  usbInner.position.set(-0.05, bottomY + 0.002, 0);
+  phone.add(usbInner);
 
-  let running = true;
-  const ctx = { renderer, composer, controls, camera, onResize: null, cleanup: null };
+  // Bottom mic
+  const bottomMic = new THREE.Mesh(
+    new THREE.CircleGeometry(0.02, 16),
+    new THREE.MeshBasicMaterial({ color: 0x010103 })
+  );
+  bottomMic.rotation.x = -Math.PI / 2;
+  bottomMic.position.set(-0.9, bottomY + 0.001, 0);
+  phone.add(bottomMic);
+
+  // ====== TOP EDGE: mic ======
+  const topMic = new THREE.Mesh(
+    new THREE.CircleGeometry(0.02, 16),
+    new THREE.MeshBasicMaterial({ color: 0x010103 })
+  );
+  topMic.rotation.x = Math.PI / 2;
+  topMic.position.set(-0.4, PHONE_H / 2 - 0.001, 0);
+  phone.add(topMic);
+
+  // Initial product-shot tilt (set once, no animation)
+  phone.rotation.y = -0.38;
+  phone.rotation.x = -0.08;
+
+  // ====== POST ======
+  const { composer } = makePost(renderer, scene, camera, container, {
+    bloomStrength: 0.12, bloomRadius: 0.35, bloomThresh: 0.96
+  });
 
   const onResize = () => {
     const w = container.clientWidth, h = container.clientHeight;
@@ -1306,34 +1354,20 @@ function buildHero(container) {
     camera.aspect = w / h; camera.updateProjectionMatrix();
   };
   window.addEventListener('resize', onResize);
-  ctx.onResize = onResize;
 
-  let t = 0;
+  let running = true, t = 0;
   function tick() {
     if (!running) return;
     t += 1/60;
     wpMat.uniforms.u_time.value = t;
-
-    // gentle drift
-    phone.rotation.y = -0.35 + Math.sin(t * 0.2) * 0.15;
-    phone.position.y = Math.sin(t * 0.4) * 0.04;
-
-    // subtle dust drift
-    const arr = dustGeo.attributes.position.array;
-    for (let i = 0; i < dustN; i++) {
-      arr[i * 3 + 1] += 0.002;
-      if (arr[i * 3 + 1] > 4) arr[i * 3 + 1] = -2;
-    }
-    dustGeo.attributes.position.needsUpdate = true;
-
+    // NO phone transform animation — purely user-controlled orbit
     controls.update();
     composer.render();
     requestAnimationFrame(tick);
   }
   tick();
 
-  ctx.cleanup = () => { running = false; };
-  return ctx;
+  return { renderer, composer, controls, camera, onResize, cleanup: () => { running = false; } };
 }
 
 // ===================================================================
@@ -1577,10 +1611,6 @@ function buildSubpixel(container) {
       m.material.color.setRGB(base * 0.12, base, base * 0.25);
     });
 
-    pixelRoot.rotation.y = Math.sin(t * 0.12) * 0.2;
-    pixelRoot.rotation.x = Math.sin(t * 0.1) * 0.1;
-    gridGroup.rotation.copy(pixelRoot.rotation);
-
     controls.update();
     composer.render();
     requestAnimationFrame(tick);
@@ -1694,7 +1724,6 @@ function buildCrossSection(container) {
       labels[i].el.style.display = p.z < 1 && p.z > -1 ? 'block' : 'none';
     });
 
-    root.rotation.y = Math.sin(t * 0.08) * 0.12;
     controls.update();
     composer.render();
     requestAnimationFrame(tick);
@@ -1866,7 +1895,6 @@ function buildFoldable(container) {
     t += 1/60;
     sharedU.u_time.value = t;
     sharedU.u_fold.value = (Math.sin(t * 0.35) + 1) / 2;
-    root.rotation.y = Math.sin(t * 0.1) * 0.25;
     controls.update();
     composer.render();
     requestAnimationFrame(tick);
