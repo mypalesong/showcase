@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>OLED · Premium Showcase</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #05050a;
+    color: #e8e8f0;
+    font-family: 'SF Pro Display', 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  header {
+    padding: 14px 24px;
+    background: linear-gradient(180deg, rgba(10,10,25,0.95), rgba(10,10,25,0.85));
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(14px);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; z-index: 10; position: relative;
+  }
+  header h1 {
+    font-size: 15px; font-weight: 600; letter-spacing: 3px;
+    background: linear-gradient(90deg,#a0c9ff,#c8a6ff,#ff9ed1);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  header h1 span { opacity: 0.5; font-weight: 300; margin: 0 6px; }
+
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab {
+    padding: 9px 16px; border-radius: 10px; font-size: 11.5px;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.02);
+    color: #a8a8c0; cursor: pointer;
+    transition: all .3s cubic-bezier(.4,0,.2,1);
+    user-select: none;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+  .tab:hover { color: #fff; border-color: rgba(200,166,255,0.4); background: rgba(200,166,255,0.08); }
+  .tab.active {
+    background: linear-gradient(135deg,#c8a6ff,#ff9ed1);
+    color: #0b0b1f; font-weight: 700;
+    border-color: transparent;
+    box-shadow: 0 4px 20px rgba(200,166,255,0.3);
+  }
+
+  main { position: relative; flex: 1; background: #000; }
+  .scene {
+    position: absolute; inset: 0;
+    display: none;
+    opacity: 0; transition: opacity .4s;
+  }
+  .scene.active { display: block; opacity: 1; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .overlay {
+    position: absolute; left: 24px; top: 24px;
+    padding: 16px 20px 18px;
+    background: rgba(8,8,20,0.55);
+    backdrop-filter: blur(18px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    font-size: 12px; line-height: 1.65;
+    pointer-events: none;
+    max-width: 320px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .overlay .tag {
+    font-size: 10px; letter-spacing: 2.5px; color: #8be9fd;
+    font-weight: 600; margin-bottom: 4px;
+  }
+  .overlay h3 {
+    font-size: 16px; margin-bottom: 8px; color: #fff;
+    font-weight: 600; letter-spacing: 0.5px;
+  }
+  .overlay p { color: #b0b0cc; font-size: 12px; }
+  .overlay .specs { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 11px; color: #8a8aa8; }
+  .overlay .specs span { color: #c8a6ff; font-weight: 600; }
+
+  .legend {
+    position: absolute; right: 24px; top: 24px;
+    padding: 14px 16px;
+    background: rgba(8,8,20,0.55);
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    font-size: 11px;
+    min-width: 180px;
+  }
+  .legend .title { font-size: 10px; letter-spacing: 2px; color: #8be9fd; margin-bottom: 8px; }
+  .legend .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 0; color: #c0c0d8; }
+  .legend .row .left { display: flex; align-items: center; gap: 8px; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15), 0 0 8px currentColor; }
+  .legend .thick { color: #8a8aa8; font-size: 10px; font-variant-numeric: tabular-nums; }
+
+  .hint {
+    position: absolute; right: 24px; bottom: 24px;
+    font-size: 10.5px; color: #7a7a98; padding: 8px 12px;
+    background: rgba(8,8,20,0.5);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; letter-spacing: 1px;
+    backdrop-filter: blur(10px);
+  }
+
+  .loader {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.85); z-index: 100;
+    transition: opacity .4s;
+  }
+  .loader.hide { opacity: 0; pointer-events: none; }
+  .loader .spinner {
+    width: 40px; height: 40px; border: 2px solid rgba(200,166,255,0.2);
+    border-top-color: #c8a6ff; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .label3d {
+    position: absolute;
+    font-size: 10.5px; color: #e8e8f0;
+    background: rgba(8,8,20,0.75);
+    border: 1px solid rgba(200,166,255,0.3);
+    padding: 4px 8px; border-radius: 5px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    transform: translate(-50%,-50%);
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+  }
+  .label3d::before {
+    content: ''; position: absolute; left: -18px; top: 50%;
+    width: 16px; height: 1px; background: rgba(200,166,255,0.6);
+  }
+  .label3d .val { color: #8be9fd; font-weight: 600; margin-left: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>SAMSUNG <span>|</span> OLED <span>|</span> NEXT-GEN DISPLAY STACK</h1>
+    <div class="tabs" id="tabs"></div>
+  </header>
+  <main id="main">
+    <div class="loader" id="loader"><div class="spinner"></div></div>
+  </main>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// ============================================================
+// Shared constants & helpers
+// ============================================================
+const PHONE_W = 3.2;
+const PHONE_H = 6.9;
+const PHONE_D = 0.52;
+const CORNER_R = 0.35;
+
+const LAYERS = [
+  { name: 'Cover Glass',    color: 0xe8f4ff, um: 650, opacity: 0.12, metal: 0.0, rough: 0.02, trans: 1.0,  ior: 1.52, clear: 1.0 },
+  { name: 'Adhesive (OCA)', color: 0xd0e8ff, um: 150, opacity: 0.18, metal: 0.0, rough: 0.05, trans: 0.95, ior: 1.47, clear: 0.8 },
+  { name: 'Touch Sensor',   color: 0x88e0c4, um: 80,  opacity: 0.30, metal: 0.1, rough: 0.15, trans: 0.7,  ior: 1.50, clear: 0.5 },
+  { name: 'Polarizer',      color: 0x5e78ff, um: 120, opacity: 0.55, metal: 0.05, rough: 0.12, trans: 0.3, ior: 1.55, clear: 0.4 },
+  { name: 'Encapsulation',  color: 0xe0e0f5, um: 30,  opacity: 0.35, metal: 0.0, rough: 0.08, trans: 0.85, ior: 1.48, clear: 0.9 },
+  { name: 'OLED Emissive',  color: 0xffffff, um: 100, opacity: 1.0,  metal: 0.0, rough: 0.3,  trans: 0.0, ior: 1.5, clear: 0.0 },
+  { name: 'TFT Backplane',  color: 0xff9e5e, um: 250, opacity: 1.0,  metal: 0.7, rough: 0.35, trans: 0.0, ior: 1.5, clear: 0.0 },
+  { name: 'Substrate (PI)', color: 0x3a3d52, um: 300, opacity: 1.0,  metal: 0.2, rough: 0.55, trans: 0.0, ior: 1.5, clear: 0.0 },
+];
+
+// Normalize thicknesses from microns to scene units for stack visuals
+const UM_SCALE = 0.0018;
+LAYERS.forEach(l => l.thickness = l.um * UM_SCALE);
+
+function roundedRectShape(w, h, r) {
+  const s = new THREE.Shape();
+  s.moveTo(-w/2 + r, -h/2);
+  s.lineTo(w/2 - r, -h/2);
+  s.quadraticCurveTo(w/2, -h/2, w/2, -h/2 + r);
+  s.lineTo(w/2, h/2 - r);
+  s.quadraticCurveTo(w/2, h/2, w/2 - r, h/2);
+  s.lineTo(-w/2 + r, h/2);
+  s.quadraticCurveTo(-w/2, h/2, -w/2, h/2 - r);
+  s.lineTo(-w/2, -h/2 + r);
+  s.quadraticCurveTo(-w/2, -h/2, -w/2 + r, -h/2);
+  return s;
+}
+
+function makeRenderer(container) {
+  const r = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
+  r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  r.setSize(container.clientWidth, container.clientHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.05;
+  r.shadowMap.enabled = true;
+  r.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(r.domElement);
+  return r;
+}
+
+function makeEnvironment(renderer, scene) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  return pmrem;
+}
+
+function addStudioLights(scene, opts={}) {
+  scene.add(new THREE.AmbientLight(0x202030, 0.3));
+
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(5, 8, 6);
+  key.castShadow = opts.shadow !== false;
+  if (key.castShadow) {
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 0.5;
+    key.shadow.camera.far = 30;
+    key.shadow.camera.left = -8;
+    key.shadow.camera.right = 8;
+    key.shadow.camera.top = 8;
+    key.shadow.camera.bottom = -8;
+    key.shadow.bias = -0.0005;
+    key.shadow.radius = 4;
+  }
+  scene.add(key);
+
+  const fill = new THREE.DirectionalLight(0x8ea7ff, 0.6);
+  fill.position.set(-6, 3, 4);
+  scene.add(fill);
+
+  const rim = new THREE.DirectionalLight(0xff9ed1, 1.0);
+  rim.position.set(-2, 2, -7);
+  scene.add(rim);
+
+  const rim2 = new THREE.DirectionalLight(0x8be9fd, 0.8);
+  rim2.position.set(4, -2, -6);
+  scene.add(rim2);
+
+  return { key, fill, rim, rim2 };
+}
+
+function makeContactShadowTex() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(256, 256, 30, 256, 256, 240);
+  g.addColorStop(0, 'rgba(0,0,0,0.85)');
+  g.addColorStop(0.5, 'rgba(0,0,0,0.35)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(256, 256, 180, 220, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function makePostFX(renderer, scene, camera, container, bloomStrength=0.55, bloomRadius=0.7, bloomThresh=0.85) {
+  const composer = new EffectComposer(renderer);
+  composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  composer.setSize(container.clientWidth, container.clientHeight);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(container.clientWidth, container.clientHeight),
+    bloomStrength, bloomRadius, bloomThresh
+  );
+  composer.addPass(bloom);
+
+  // Subtle vignette + chromatic aberration
+  const vignetteShader = {
+    uniforms: {
+      tDiffuse: { value: null },
+      offset: { value: 0.9 },
+      darkness: { value: 0.9 },
+    },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform float offset;
+      uniform float darkness;
+      varying vec2 vUv;
+      void main(){
+        vec2 d = vUv - 0.5;
+        // chromatic aberration
+        float ca = 0.003 * length(d);
+        vec4 tex;
+        tex.r = texture2D(tDiffuse, vUv - d*ca*2.0).r;
+        tex.g = texture2D(tDiffuse, vUv).g;
+        tex.b = texture2D(tDiffuse, vUv + d*ca*2.0).b;
+        tex.a = 1.0;
+        // vignette
+        float v = smoothstep(offset, offset-0.5, length(d));
+        tex.rgb = mix(tex.rgb * (1.0 - darkness*0.3), tex.rgb, v);
+        gl_FragColor = tex;
+      }
+    `,
+  };
+  composer.addPass(new ShaderPass(vignetteShader));
+
+  composer.addPass(new SMAAPass(container.clientWidth * renderer.getPixelRatio(), container.clientHeight * renderer.getPixelRatio()));
+  composer.addPass(new OutputPass());
+
+  return { composer, bloom };
+}
+
+// ============================================================
+// OLED wallpaper shader (shared)
+// ============================================================
+const WALLPAPER_SHADER = {
+  uniforms: {
+    u_time: { value: 0 },
+    u_resolution: { value: new THREE.Vector2(1, 1) },
+    u_pixelGrid: { value: 1.0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader: `
+    varying vec2 vUv;
+    uniform float u_time;
+    uniform float u_pixelGrid;
+
+    // simplex-ish noise
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){
+      vec2 i = floor(p); vec2 f = fract(p);
+      float a = hash(i), b = hash(i+vec2(1,0));
+      float c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+      vec2 u = f*f*(3.0-2.0*f);
+      return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+    }
+
+    vec3 palette(float t){
+      vec3 a = vec3(0.5, 0.5, 0.5);
+      vec3 b = vec3(0.5, 0.5, 0.5);
+      vec3 c = vec3(1.0, 1.0, 1.0);
+      vec3 d = vec3(0.00, 0.33, 0.67);
+      return a + b * cos(6.28318 * (c * t + d));
+    }
+
+    void main(){
+      vec2 uv = vUv;
+      vec2 p = uv - 0.5;
+      p.x *= 0.47; // aspect
+
+      // flowing fluid
+      float t = u_time * 0.25;
+      vec2 q = p;
+      for(int i=0; i<4; i++){
+        float fi = float(i)+1.0;
+        q.x += sin(q.y*4.0*fi + t*fi) * 0.06/fi;
+        q.y += cos(q.x*3.0*fi - t*fi*0.7) * 0.06/fi;
+      }
+
+      float d = length(q);
+      float angle = atan(q.y, q.x);
+
+      // aurora bands
+      vec3 col = palette(d*1.5 + t*0.3 + noise(q*3.0)*0.5);
+
+      // bright core
+      col += vec3(1.0, 0.7, 1.0) * exp(-d*4.0) * 0.7;
+
+      // soft ring
+      col += vec3(0.4, 0.8, 1.0) * smoothstep(0.15, 0.1, abs(d-0.32));
+
+      // grain
+      col += (noise(uv*400.0) - 0.5) * 0.02;
+
+      // subtle sub-pixel grid (visible when zoomed in)
+      float gridX = step(0.5, fract(uv.x * 260.0));
+      float gridY = step(0.5, fract(uv.y * 560.0));
+      vec3 rgbMask = vec3(
+        gridX < 0.5 ? 1.2 : 0.8,
+        1.0,
+        gridX > 0.5 ? 1.2 : 0.8
+      );
+      col *= mix(vec3(1.0), rgbMask, u_pixelGrid * 0.15);
+
+      // scanline-ish horizontal
+      col *= 0.97 + 0.03*sin(uv.y*1200.0);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+};
+
+// ============================================================
+// SCENE 1 — HERO DEVICE (photoreal flagship)
+// ============================================================
+function buildHero(container) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05050a);
+
+  // backdrop gradient via large sphere
+  {
+    const g = new THREE.SphereGeometry(40, 32, 32);
+    const m = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {},
+      vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+      fragmentShader: `
+        varying vec3 vP;
+        void main(){
+          float y = normalize(vP).y;
+          vec3 top = vec3(0.03, 0.03, 0.08);
+          vec3 mid = vec3(0.10, 0.06, 0.18);
+          vec3 bot = vec3(0.01, 0.01, 0.03);
+          vec3 c = mix(bot, mid, smoothstep(-0.3, 0.1, y));
+          c = mix(c, top, smoothstep(0.1, 0.9, y));
+          gl_FragColor = vec4(c, 1.0);
+        }
+      `,
+    });
+    scene.add(new THREE.Mesh(g, m));
+  }
+
+  const renderer = makeRenderer(container);
+  makeEnvironment(renderer, scene);
+
+  const camera = new THREE.PerspectiveCamera(32, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(4.5, 2.2, 9);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 5; controls.maxDistance = 18;
+  controls.target.set(0, 0, 0);
+
+  addStudioLights(scene);
+
+  // ---------- Floor with reflection-like env ----------
+  const floorGeo = new THREE.CircleGeometry(14, 64);
+  floorGeo.rotateX(-Math.PI/2);
+  const floorMat = new THREE.MeshPhysicalMaterial({
+    color: 0x080812,
+    metalness: 0.7,
+    roughness: 0.45,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.3,
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.position.y = -3.2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // contact shadow below phone
+  const shadowMat = new THREE.MeshBasicMaterial({
+    map: makeContactShadowTex(),
+    transparent: true, opacity: 0.9,
+    depthWrite: false,
+  });
+  const shadowGeo = new THREE.PlaneGeometry(5, 7.5);
+  shadowGeo.rotateX(-Math.PI/2);
+  const contactShadow = new THREE.Mesh(shadowGeo, shadowMat);
+  contactShadow.position.y = -3.19;
+  scene.add(contactShadow);
+
+  // ---------- PHONE ----------
+  const phoneRoot = new THREE.Group();
+  scene.add(phoneRoot);
+
+  // Titanium frame — a slightly darker rounded box as the body
+  const bodyGeo = new RoundedBoxGeometry(PHONE_W, PHONE_H, PHONE_D, 8, CORNER_R);
+  const titaniumMat = new THREE.MeshPhysicalMaterial({
+    color: 0x2a2c35,
+    metalness: 1.0,
+    roughness: 0.28,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.4,
+    anisotropy: 0.9,
+    anisotropyRotation: Math.PI/2,
+    envMapIntensity: 1.4,
+  });
+  const body = new THREE.Mesh(bodyGeo, titaniumMat);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  phoneRoot.add(body);
+
+  // Bezel (slightly inset dark ring around screen)
+  const bezelShape = roundedRectShape(PHONE_W - 0.08, PHONE_H - 0.08, CORNER_R - 0.04);
+  const screenHoleShape = roundedRectShape(PHONE_W - 0.24, PHONE_H - 0.24, CORNER_R - 0.10);
+  bezelShape.holes.push(screenHoleShape);
+  const bezelGeo = new THREE.ExtrudeGeometry(bezelShape, { depth: 0.01, bevelEnabled: false });
+  bezelGeo.translate(0, 0, PHONE_D/2 + 0.001);
+  const bezelMat = new THREE.MeshPhysicalMaterial({ color: 0x05050a, metalness: 0.3, roughness: 0.6 });
+  const bezel = new THREE.Mesh(bezelGeo, bezelMat);
+  phoneRoot.add(bezel);
+
+  // SCREEN (OLED live wallpaper)
+  const screenGeo = new THREE.PlaneGeometry(PHONE_W - 0.24, PHONE_H - 0.24, 1, 1);
+  const wallpaperMat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.clone(WALLPAPER_SHADER.uniforms),
+    vertexShader: WALLPAPER_SHADER.vertexShader,
+    fragmentShader: WALLPAPER_SHADER.fragmentShader,
+  });
+  wallpaperMat.uniforms.u_pixelGrid.value = 1.0;
+  const screen = new THREE.Mesh(screenGeo, wallpaperMat);
+  screen.position.z = PHONE_D/2 + 0.006;
+  phoneRoot.add(screen);
+
+  // Cover glass (physical glass plane in front of screen for highlight)
+  const glassGeo = new THREE.PlaneGeometry(PHONE_W - 0.12, PHONE_H - 0.12);
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.0,
+    roughness: 0.0,
+    transmission: 1.0,
+    thickness: 0.06,
+    ior: 1.52,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.0,
+    envMapIntensity: 1.6,
+    transparent: true,
+  });
+  const glass = new THREE.Mesh(glassGeo, glassMat);
+  glass.position.z = PHONE_D/2 + 0.012;
+  phoneRoot.add(glass);
+
+  // Punch-hole front camera
+  const holeGeo = new THREE.CircleGeometry(0.1, 32);
+  const holeMat = new THREE.MeshPhysicalMaterial({ color: 0x000000, metalness: 0.9, roughness: 0.1 });
+  const hole = new THREE.Mesh(holeGeo, holeMat);
+  hole.position.set(0, PHONE_H/2 - 0.4, PHONE_D/2 + 0.016);
+  phoneRoot.add(hole);
+  const holeInner = new THREE.Mesh(new THREE.CircleGeometry(0.07, 32), new THREE.MeshPhysicalMaterial({ color: 0x1a1a33, metalness: 0.0, roughness: 0.2, clearcoat: 1.0, emissive: 0x102040, emissiveIntensity: 0.3 }));
+  holeInner.position.copy(hole.position);
+  holeInner.position.z += 0.001;
+  phoneRoot.add(holeInner);
+
+  // CAMERA MODULE (back, top-left)
+  const camGroup = new THREE.Group();
+  camGroup.position.set(-PHONE_W/2 + 1.0, PHONE_H/2 - 1.1, -PHONE_D/2 - 0.08);
+  camGroup.rotation.x = Math.PI;
+  phoneRoot.add(camGroup);
+
+  // Camera bump plate
+  const bumpGeo = new RoundedBoxGeometry(1.4, 1.7, 0.16, 4, 0.18);
+  const bumpMat = new THREE.MeshPhysicalMaterial({
+    color: 0x1a1b22,
+    metalness: 0.95, roughness: 0.35,
+    clearcoat: 0.5, clearcoatRoughness: 0.3,
+  });
+  const bump = new THREE.Mesh(bumpGeo, bumpMat);
+  bump.castShadow = true;
+  camGroup.add(bump);
+
+  // 3 lenses
+  const lensPositions = [
+    { x: -0.35, y:  0.55, r: 0.26 },
+    { x:  0.35, y:  0.55, r: 0.26 },
+    { x:  0.00, y: -0.25, r: 0.28 },
+  ];
+  lensPositions.forEach(lp => {
+    // housing
+    const housing = new THREE.Mesh(
+      new THREE.CylinderGeometry(lp.r + 0.05, lp.r + 0.05, 0.12, 40),
+      new THREE.MeshPhysicalMaterial({ color: 0x0a0a12, metalness: 0.9, roughness: 0.25 })
+    );
+    housing.rotation.x = Math.PI/2;
+    housing.position.set(lp.x, lp.y, 0.12);
+    camGroup.add(housing);
+
+    // metallic ring
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(lp.r + 0.015, 0.015, 12, 40),
+      new THREE.MeshPhysicalMaterial({ color: 0x9aa0aa, metalness: 1.0, roughness: 0.15 })
+    );
+    ring.position.set(lp.x, lp.y, 0.19);
+    camGroup.add(ring);
+
+    // glass lens
+    const lens = new THREE.Mesh(
+      new THREE.CircleGeometry(lp.r, 40),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x0b0b1f, metalness: 0.0, roughness: 0.02,
+        transmission: 0.6, ior: 1.7, thickness: 0.3,
+        clearcoat: 1.0, clearcoatRoughness: 0.0,
+        envMapIntensity: 2.0,
+      })
+    );
+    lens.position.set(lp.x, lp.y, 0.195);
+    camGroup.add(lens);
+
+    // iris/pupil
+    const pupil = new THREE.Mesh(
+      new THREE.CircleGeometry(lp.r*0.4, 32),
+      new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.9, roughness: 0.1 })
+    );
+    pupil.position.set(lp.x, lp.y, 0.196);
+    camGroup.add(pupil);
+  });
+
+  // Flash & sensors
+  const flash = new THREE.Mesh(
+    new THREE.CircleGeometry(0.06, 24),
+    new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xfff4d0, emissiveIntensity: 0.6, metalness: 0.2, roughness: 0.3 })
+  );
+  flash.position.set(0.45, -0.65, 0.13);
+  camGroup.add(flash);
+
+  const sensor = new THREE.Mesh(
+    new THREE.CircleGeometry(0.04, 24),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a22, metalness: 0.8, roughness: 0.3 })
+  );
+  sensor.position.set(-0.45, -0.65, 0.13);
+  camGroup.add(sensor);
+
+  // Side buttons
+  const btnMat = new THREE.MeshPhysicalMaterial({ color: 0x2a2c35, metalness: 1.0, roughness: 0.3 });
+  const power = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.6, 0.14, 2, 0.02), btnMat);
+  power.position.set(PHONE_W/2 + 0.001, 0.3, 0);
+  phoneRoot.add(power);
+  for (let i=0;i<2;i++){
+    const v = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.4, 0.14, 2, 0.02), btnMat);
+    v.position.set(-PHONE_W/2 - 0.001, 0.8 - i*0.55, 0);
+    phoneRoot.add(v);
+  }
+
+  // Speaker grille (bottom)
+  const speaker = new THREE.Group();
+  for (let i=0;i<8;i++){
+    const dot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.03, 12),
+      new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.2, roughness: 0.8 })
+    );
+    dot.rotation.x = Math.PI/2;
+    dot.position.set(0.3 + i*0.08, 0, 0);
+    speaker.add(dot);
+  }
+  speaker.position.set(-0.3, -PHONE_H/2 + 0.005, 0);
+  speaker.rotation.x = Math.PI/2;
+  phoneRoot.add(speaker);
+
+  // USB-C
+  const usb = new THREE.Mesh(
+    new RoundedBoxGeometry(0.35, 0.08, 0.14, 2, 0.03),
+    new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.8, roughness: 0.4 })
+  );
+  usb.position.set(0.2, -PHONE_H/2 - 0.001, 0);
+  usb.rotation.x = Math.PI/2;
+  phoneRoot.add(usb);
+
+  // ---------- floating dust/particles ----------
+  const dustN = 300;
+  const dustGeo = new THREE.BufferGeometry();
+  const dustPos = new Float32Array(dustN*3);
+  for (let i=0;i<dustN;i++){
+    dustPos[i*3]   = (Math.random()-0.5)*14;
+    dustPos[i*3+1] = (Math.random()-0.5)*10;
+    dustPos[i*3+2] = (Math.random()-0.5)*10;
+  }
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+    size: 0.018, color: 0xaabbff, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  scene.add(dust);
+
+  const { composer } = makePostFX(renderer, scene, camera, container, 0.7, 0.8, 0.78);
+
+  const onResize = () => {
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h); composer.setSize(w, h);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', onResize);
+
+  let t = 0;
+  function animate(){
+    t += 1/60;
+    wallpaperMat.uniforms.u_time.value = t;
+    phoneRoot.rotation.y = Math.sin(t*0.15) * 0.5 - 0.2;
+    phoneRoot.position.y = Math.sin(t*0.5) * 0.06;
+
+    dustGeo.attributes.position.array.forEach;
+    const arr = dustGeo.attributes.position.array;
+    for (let i=0;i<dustN;i++){
+      arr[i*3+1] += 0.003;
+      if (arr[i*3+1] > 5) arr[i*3+1] = -5;
+    }
+    dustGeo.attributes.position.needsUpdate = true;
+
+    controls.update();
+    composer.render();
+    return requestAnimationFrame(animate);
+  }
+  animate();
+
+  // Overlay
+  const info = document.createElement('div');
+  info.className = 'overlay';
+  info.innerHTML = `
+    <div class="tag">SCENE 01</div>
+    <h3>Flagship Device Render</h3>
+    <p>티타늄 프레임, 커브드 커버 글라스, 트리플 카메라 모듈을 PBR + HDR 환경광으로 렌더. 스크린은 셰이더 기반 라이브 월페이퍼.</p>
+    <div class="specs">
+      MATERIAL <span>Titanium · Gorilla Glass Victus</span><br/>
+      DISPLAY <span>6.7" Dynamic AMOLED 2X · 120Hz</span><br/>
+      RENDER <span>ACES · SMAA · Bloom · Vignette</span>
+    </div>`;
+  container.appendChild(info);
+
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = 'DRAG · ZOOM';
+  container.appendChild(hint);
+}
+
+// ============================================================
+// SCENE 2 — LAYER STACK (premium exploded)
+// ============================================================
+function buildExploded(container) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x040410);
+
+  // Backdrop
+  const bgGeo = new THREE.PlaneGeometry(60, 60);
+  const bgMat = new THREE.ShaderMaterial({
+    depthWrite: false,
+    vertexShader: `varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader: `
+      varying vec2 vUv;
+      void main(){
+        float d = length(vUv - 0.5);
+        vec3 c = mix(vec3(0.05,0.05,0.12), vec3(0.01,0.01,0.03), d*1.5);
+        gl_FragColor = vec4(c,1.0);
+      }
+    `,
+  });
+  const bg = new THREE.Mesh(bgGeo, bgMat);
+  bg.position.z = -15;
+  scene.add(bg);
+
+  const renderer = makeRenderer(container);
+  makeEnvironment(renderer, scene);
+
+  const camera = new THREE.PerspectiveCamera(38, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(7, 5, 10);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.4;
+
+  addStudioLights(scene);
+
+  const root = new THREE.Group();
+  scene.add(root);
+
+  const shape = roundedRectShape(PHONE_W, PHONE_H, CORNER_R);
+
+  const meshes = [];
+  LAYERS.forEach((layer, i) => {
+    const depthScaled = Math.max(0.025, layer.thickness * 3.0); // visibility scale
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: depthScaled,
+      bevelEnabled: true, bevelSegments: 3, bevelSize: 0.008, bevelThickness: 0.008,
+      curveSegments: 12,
+    });
+    geo.translate(0, 0, -depthScaled/2);
+    geo.rotateX(-Math.PI/2);
+
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: layer.color,
+      metalness: layer.metal,
+      roughness: layer.rough,
+      transmission: layer.trans,
+      opacity: layer.opacity,
+      transparent: layer.opacity < 1 || layer.trans > 0,
+      ior: layer.ior,
+      thickness: depthScaled,
+      clearcoat: layer.clear,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 1.5,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData = { idx: i, layer, baseH: depthScaled };
+    root.add(mesh);
+    meshes.push(mesh);
+  });
+
+  // Live OLED shader on emissive layer
+  const oledIdx = LAYERS.findIndex(l => l.name === 'OLED Emissive');
+  const wpGeo = new THREE.PlaneGeometry(PHONE_W - 0.2, PHONE_H - 0.2);
+  const wpMat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.clone(WALLPAPER_SHADER.uniforms),
+    vertexShader: WALLPAPER_SHADER.vertexShader,
+    fragmentShader: WALLPAPER_SHADER.fragmentShader,
+  });
+  const wallpaper = new THREE.Mesh(wpGeo, wpMat);
+  wallpaper.rotation.x = -Math.PI/2;
+  root.add(wallpaper);
+
+  // Laser-like separator lines
+  const lineMat = new THREE.LineDashedMaterial({ color: 0x8be9fd, dashSize: 0.08, gapSize: 0.06, transparent: true, opacity: 0.35 });
+  const sideLines = [];
+  LAYERS.forEach((_, i) => {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(PHONE_W/2 + 0.3, 0, PHONE_H/2 + 0.3),
+      new THREE.Vector3(PHONE_W/2 + 0.6, 0, PHONE_H/2 + 0.6),
+    ]);
+    const l = new THREE.Line(g, lineMat.clone());
+    l.computeLineDistances();
+    root.add(l);
+    sideLines.push(l);
+  });
+
+  // ground floor for shadows
+  const floorGeo = new THREE.CircleGeometry(10, 48); floorGeo.rotateX(-Math.PI/2);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x05050f, metalness: 0.6, roughness: 0.5 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.position.y = -3;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const { composer } = makePostFX(renderer, scene, camera, container, 0.6, 0.75, 0.82);
+
+  const onResize = () => {
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h); composer.setSize(w, h);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', onResize);
+
+  let t = 0;
+  function animate(){
+    t += 1/60;
+    wpMat.uniforms.u_time.value = t;
+
+    const breath = (Math.sin(t*0.5) + 1)/2; // 0..1
+    const spread = 0.05 + breath * 0.55;
+    let cursor = 0;
+    meshes.forEach((m, i) => {
+      cursor += spread;
+      m.position.y = cursor;
+      sideLines[i].position.y = cursor;
+      cursor += m.userData.baseH * 0.6;
+    });
+    wallpaper.position.y = meshes[oledIdx].position.y + meshes[oledIdx].userData.baseH/2 + 0.002;
+    root.position.y = -cursor/2 + 0.3;
+
+    controls.update();
+    composer.render();
+    return requestAnimationFrame(animate);
+  }
+  animate();
+
+  // Overlay
+  const info = document.createElement('div');
+  info.className = 'overlay';
+  info.innerHTML = `
+    <div class="tag">SCENE 02</div>
+    <h3>Layer Stack Decomposition</h3>
+    <p>실제 μm 단위 두께 비율로 모델링된 8레이어. 각 층은 PBR 기반 굴절률·투과율·클리어코트를 반영.</p>
+    <div class="specs">TOTAL THICKNESS <span>~1.68 mm</span></div>`;
+  container.appendChild(info);
+
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  legend.innerHTML = `<div class="title">LAYER SPEC</div>` + LAYERS.map(l => {
+    const hex = '#' + l.color.toString(16).padStart(6, '0');
+    return `<div class="row"><div class="left"><span class="swatch" style="background:${hex};color:${hex}"></span>${l.name}</div><span class="thick">${l.um} μm</span></div>`;
+  }).join('');
+  container.appendChild(legend);
+
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = 'AUTO-ROTATE · DRAG TO OVERRIDE';
+  container.appendChild(hint);
+}
+
+// ============================================================
+// SCENE 3 — SUB-PIXEL MACRO (Diamond PenTile)
+// ============================================================
+function buildSubpixel(container) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000005);
+
+  const renderer = makeRenderer(container);
+
+  const camera = new THREE.PerspectiveCamera(28, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(0, 0, 8);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.minDistance = 3; controls.maxDistance = 20;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+
+  // Black substrate behind pixels
+  const substrate = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshStandardMaterial({ color: 0x030305, metalness: 0.4, roughness: 0.8 })
+  );
+  substrate.position.z = -0.05;
+  scene.add(substrate);
+
+  // Diamond PenTile RGBG pattern
+  // Red & Blue are diamonds, Green are smaller ovals (two per R/B cell)
+  const pixelGroup = new THREE.Group();
+  scene.add(pixelGroup);
+
+  const cols = 20, rows = 32;
+  const cellW = 0.28;
+
+  const diamondShape = new THREE.Shape();
+  diamondShape.moveTo(0, cellW*0.45);
+  diamondShape.lineTo(cellW*0.38, 0);
+  diamondShape.lineTo(0, -cellW*0.45);
+  diamondShape.lineTo(-cellW*0.38, 0);
+  diamondShape.lineTo(0, cellW*0.45);
+  const diamondGeo = new THREE.ShapeGeometry(diamondShape);
+
+  const greenGeo = new THREE.CircleGeometry(cellW*0.18, 24);
+
+  const mkMat = (hex) => new THREE.MeshBasicMaterial({ color: hex });
+  const redMat = mkMat(0xff2244);
+  const blueMat = mkMat(0x2266ff);
+  const greenMat = mkMat(0x22ff66);
+
+  const subGroups = { R: [], G: [], B: [] };
+  const startX = -(cols*cellW)/2 + cellW/2;
+  const startY = -(rows*cellW)/2 + cellW/2;
+
+  for (let r=0;r<rows;r++){
+    for (let c=0;c<cols;c++){
+      const x = startX + c*cellW;
+      const y = startY + r*cellW;
+      const isRed = (r+c) % 2 === 0;
+
+      const main = new THREE.Mesh(diamondGeo.clone(), isRed ? redMat.clone() : blueMat.clone());
+      main.position.set(x, y, 0);
+      main.userData.type = isRed ? 'R' : 'B';
+      pixelGroup.add(main);
+      subGroups[main.userData.type].push(main);
+
+      // two greens offset
+      const g1 = new THREE.Mesh(greenGeo, greenMat.clone());
+      g1.position.set(x + cellW*0.25, y + cellW*0.25, 0);
+      pixelGroup.add(g1);
+      subGroups.G.push(g1);
+
+      const g2 = new THREE.Mesh(greenGeo, greenMat.clone());
+      g2.position.set(x - cellW*0.25, y - cellW*0.25, 0);
+      pixelGroup.add(g2);
+      subGroups.G.push(g2);
+    }
+  }
+
+  // Soft glow halo per sub-pixel via sprite
+  const glowTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d').createRadialGradient(64,64,0,64,64,64);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.3, 'rgba(255,255,255,0.5)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = g; ctx.fillRect(0,0,128,128);
+    return new THREE.CanvasTexture(c);
+  })();
+
+  // Grid overlay (thin TFT lines)
+  const gridMat = new THREE.LineBasicMaterial({ color: 0x222244, transparent: true, opacity: 0.35 });
+  const gridPoints = [];
+  for (let c=0;c<=cols;c++){
+    const x = startX - cellW/2 + c*cellW;
+    gridPoints.push(new THREE.Vector3(x, startY - cellW/2, 0.001));
+    gridPoints.push(new THREE.Vector3(x, startY + rows*cellW - cellW/2, 0.001));
+  }
+  for (let r=0;r<=rows;r++){
+    const y = startY - cellW/2 + r*cellW;
+    gridPoints.push(new THREE.Vector3(startX - cellW/2, y, 0.001));
+    gridPoints.push(new THREE.Vector3(startX + cols*cellW - cellW/2, y, 0.001));
+  }
+  const gridGeo = new THREE.BufferGeometry().setFromPoints(gridPoints);
+  pixelGroup.add(new THREE.LineSegments(gridGeo, gridMat));
+
+  const { composer } = makePostFX(renderer, scene, camera, container, 1.4, 0.9, 0.0);
+
+  const onResize = () => {
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h); composer.setSize(w, h);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', onResize);
+
+  let t = 0;
+  function animate(){
+    t += 1/60;
+    // Per-subpixel intensity wave
+    subGroups.R.forEach((m, i) => {
+      const w = Math.sin(i*0.3 + t*1.2) * 0.5 + 0.5;
+      m.material.color.setRGB(1.0 * (0.2 + w), 0.1*w, 0.25*w);
+    });
+    subGroups.G.forEach((m, i) => {
+      const w = Math.sin(i*0.15 + t*1.5 + 1.0) * 0.5 + 0.5;
+      m.material.color.setRGB(0.1*w, 1.0 * (0.25 + w), 0.3*w);
+    });
+    subGroups.B.forEach((m, i) => {
+      const w = Math.sin(i*0.22 - t*1.0 + 2.0) * 0.5 + 0.5;
+      m.material.color.setRGB(0.12*w, 0.2*w, 1.0 * (0.25 + w));
+    });
+
+    pixelGroup.rotation.y = Math.sin(t*0.2) * 0.25;
+    pixelGroup.rotation.x = Math.sin(t*0.15) * 0.15;
+
+    controls.update();
+    composer.render();
+    return requestAnimationFrame(animate);
+  }
+  animate();
+
+  const info = document.createElement('div');
+  info.className = 'overlay';
+  info.innerHTML = `
+    <div class="tag">SCENE 03</div>
+    <h3>Diamond PenTile · Sub-pixel Macro</h3>
+    <p>삼성 Diamond PenTile 배열. R/B 다이아몬드 주위로 2개의 소형 G 픽셀이 RGBG로 배치된 실제 구조.</p>
+    <div class="specs">PATTERN <span>RGBG Diamond</span><br/>DENSITY <span>~515 PPI</span></div>`;
+  container.appendChild(info);
+
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = 'ZOOM IN FOR MACRO';
+  container.appendChild(hint);
+}
+
+// ============================================================
+// SCENE 4 — CROSS-SECTION (annotated microscope view)
+// ============================================================
+function buildCross(container) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x06060e);
+
+  const renderer = makeRenderer(container);
+  renderer.localClippingEnabled = true;
+  makeEnvironment(renderer, scene);
+
+  const camera = new THREE.PerspectiveCamera(30, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(9, 2.5, 4);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  addStudioLights(scene, { shadow: false });
+
+  const root = new THREE.Group();
+  scene.add(root);
+
+  // Clipping plane — reveals right half
+  const clip = new THREE.Plane(new THREE.Vector3(-1,0,0), 0);
+
+  const sideW = PHONE_W;
+  const sideL = PHONE_H;
+  const shape = roundedRectShape(sideW, sideL, CORNER_R);
+
+  const stackMeshes = [];
+  let yPos = 0;
+  LAYERS.forEach((layer) => {
+    const h = Math.max(0.04, layer.thickness * 5.5);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
+    geo.rotateX(-Math.PI/2);
+    geo.translate(0, -h, 0);
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: layer.color,
+      metalness: layer.metal,
+      roughness: layer.rough,
+      transmission: layer.trans * 0.6,
+      opacity: Math.max(0.7, layer.opacity),
+      transparent: layer.opacity < 1,
+      ior: layer.ior,
+      thickness: h,
+      clearcoat: layer.clear,
+      envMapIntensity: 1.2,
+      side: THREE.DoubleSide,
+      clippingPlanes: [clip],
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = yPos;
+    yPos -= h + 0.005;
+    mesh.userData = { layer, h, yCenter: mesh.position.y + h/2 };
+    root.add(mesh);
+    stackMeshes.push(mesh);
+
+    // thin bright edge on the section cut
+    const edgeGeo = new THREE.PlaneGeometry(sideL*0.98, h);
+    edgeGeo.rotateY(Math.PI/2);
+    const edgeMat = new THREE.MeshBasicMaterial({
+      color: layer.color, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+    });
+    const edge = new THREE.Mesh(edgeGeo, edgeMat);
+    edge.position.set(0, mesh.position.y - h/2, 0);
+    root.add(edge);
+  });
+
+  root.position.y = -yPos/2 + 0.3;
+
+  // Slice plane
+  const sliceGeo = new THREE.PlaneGeometry(sideL*1.3, Math.abs(yPos)*1.3);
+  sliceGeo.rotateY(Math.PI/2);
+  const sliceMat = new THREE.MeshBasicMaterial({ color: 0xff79c6, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false });
+  const slice = new THREE.Mesh(sliceGeo, sliceMat);
+  slice.position.y = root.position.y;
+  scene.add(slice);
+
+  // Dimension lines + labels (HTML)
+  const labels = [];
+  stackMeshes.forEach((m, i) => {
+    const el = document.createElement('div');
+    el.className = 'label3d';
+    el.innerHTML = `${m.userData.layer.name}<span class="val">${m.userData.layer.um} μm</span>`;
+    container.appendChild(el);
+    labels.push({ el, worldPos: new THREE.Vector3() });
+  });
+
+  const { composer } = makePostFX(renderer, scene, camera, container, 0.5, 0.7, 0.88);
+
+  const onResize = () => {
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h); composer.setSize(w, h);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', onResize);
+
+  let t = 0;
+  function animate(){
+    t += 1/60;
+    const s = Math.sin(t*0.4) * (sideW/2 - 0.2);
+    clip.constant = s;
+    slice.position.x = s;
+
+    // update labels
+    stackMeshes.forEach((m, i) => {
+      labels[i].worldPos.set(
+        s + 1.6,
+        root.position.y + m.position.y - m.userData.h/2 + m.userData.h/2,
+        0
+      );
+      const p = labels[i].worldPos.clone().project(camera);
+      const x = (p.x + 1)/2 * container.clientWidth;
+      const y = (-p.y + 1)/2 * container.clientHeight;
+      labels[i].el.style.left = x + 'px';
+      labels[i].el.style.top = y + 'px';
+      labels[i].el.style.display = p.z < 1 ? 'block' : 'none';
+    });
+
+    root.rotation.y = Math.sin(t*0.12) * 0.15;
+    controls.update();
+    composer.render();
+    return requestAnimationFrame(animate);
+  }
+  animate();
+
+  const info = document.createElement('div');
+  info.className = 'overlay';
+  info.innerHTML = `
+    <div class="tag">SCENE 04</div>
+    <h3>Cross-section · Microscope Cut</h3>
+    <p>핑크 컷-플레인이 좌우로 스윕하며 OLED 스택을 실시간 단면화. 각 층은 실측 μm 라벨과 함께 표기.</p>`;
+  container.appendChild(info);
+}
+
+// ============================================================
+// SCENE 5 — FOLDABLE HINGE (waterdrop)
+// ============================================================
+function buildFold(container) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x04040c);
+
+  const renderer = makeRenderer(container);
+  makeEnvironment(renderer, scene);
+
+  const camera = new THREE.PerspectiveCamera(38, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(0, 3, 11);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  addStudioLights(scene);
+
+  const root = new THREE.Group();
+  scene.add(root);
+
+  // Flexible OLED panel built from a segmented plane that bends with a waterdrop profile
+  const W = 6.4, H = 4.4, SEG_X = 240, SEG_Y = 10;
+
+  const layersFold = [
+    { color: 0xe8f4ff, off: 0.12, alpha: 0.18 },
+    { color: 0x5e78ff, off: 0.06, alpha: 0.4 },
+    { color: 0xffffff, off: 0.0, alpha: 1.0, isOLED: true },
+    { color: 0xff9e5e, off: -0.06, alpha: 0.9 },
+    { color: 0x3a3d52, off: -0.14, alpha: 1.0 },
+  ];
+
+  const sharedU = {
+    u_fold: { value: 0 },    // 0 open, 1 closed
+    u_time: { value: 0 },
+    u_W: { value: W },
+  };
+
+  // Waterdrop bend vertex shader: for |x| < gap/2, the panel curves around a small radius inward
+  const bendVertex = `
+    uniform float u_fold;
+    uniform float u_W;
+    uniform float u_offset;
+    varying vec2 vUv;
+
+    vec3 waterdrop(vec3 p){
+      float angle = u_fold * 3.14159 * 0.5; // 0..pi/2
+      // Bend radius decreases as fold increases (waterdrop tightens)
+      float R = mix(1.0, 0.15, u_fold);
+      float gap = R * 1.6; // hinge gap width
+
+      float side = sign(p.x);
+      float ax = abs(p.x);
+
+      vec3 result;
+      if (ax < gap*0.5) {
+        // curved region
+        float localX = ax - gap*0.5;  // -gap/2..0
+        float theta = (localX / (gap*0.5)) * angle; // -angle..0
+        // curve: arc around center below
+        float cx = gap*0.5 * side;
+        float cz = -R + u_offset;
+        float rx = cx - side * R * sin(-theta);
+        float rz = cz + R * cos(-theta);
+        result = vec3(rx, p.y, rz);
+      } else {
+        // flat region, rotated by angle
+        float baseAngle = angle * side;
+        float c = cos(-baseAngle), s = sin(-baseAngle);
+        float shift = (ax - gap*0.5) * side;
+        // position on panel extended from curved edge
+        vec2 panelEnd = vec2(
+          gap*0.5*side - side * R * sin(angle),
+          -R + u_offset + R * cos(angle)
+        );
+        vec2 dir = vec2(cos(baseAngle) * side, sin(baseAngle));
+        vec2 xz = panelEnd + dir * (ax - gap*0.5);
+        result = vec3(xz.x, p.y, xz.y);
+      }
+      return result;
+    }
+
+    void main(){
+      vUv = uv;
+      vec3 bent = waterdrop(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(bent, 1.0);
+    }
+  `;
+
+  const meshes = layersFold.map(l => {
+    const geo = new THREE.PlaneGeometry(W, H, SEG_X, SEG_Y);
+    let mat;
+    if (l.isOLED) {
+      mat = new THREE.ShaderMaterial({
+        uniforms: { ...sharedU, u_offset: { value: l.off } },
+        vertexShader: bendVertex,
+        fragmentShader: `
+          varying vec2 vUv;
+          uniform float u_time;
+          float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+          float noise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1)); vec2 u=f*f*(3.0-2.0*f); return mix(mix(a,b,u.x),mix(c,d,u.x),u.y); }
+          void main(){
+            vec2 uv = vUv;
+            vec2 q = uv;
+            float t = u_time*0.3;
+            for(int i=0;i<3;i++){
+              float fi=float(i)+1.0;
+              q.x += sin(q.y*5.0*fi + t*fi)*0.05/fi;
+              q.y += cos(q.x*4.0*fi - t*fi)*0.05/fi;
+            }
+            float d = length(q-0.5);
+            vec3 col = vec3(0.0);
+            col += vec3(0.4,0.6,1.0) * smoothstep(0.4,0.0,d);
+            col += vec3(1.0,0.3,0.8) * smoothstep(0.5,0.2,abs(d-0.25));
+            col += vec3(0.3,1.0,0.8) * (0.3 + 0.3*sin(q.x*20.0 + t*3.0));
+            col *= 1.2;
+            // sub-pixel darkening band near hinge
+            float hinge = smoothstep(0.015, 0.0, abs(uv.x-0.5));
+            col *= (1.0 - hinge*0.3);
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `,
+        side: THREE.DoubleSide,
+      });
+    } else {
+      mat = new THREE.ShaderMaterial({
+        uniforms: { ...sharedU, u_offset: { value: l.off }, u_color: { value: new THREE.Color(l.color) }, u_alpha: { value: l.alpha } },
+        vertexShader: bendVertex,
+        fragmentShader: `
+          varying vec2 vUv;
+          uniform vec3 u_color;
+          uniform float u_alpha;
+          void main(){
+            float edge = smoothstep(0.0,0.04,vUv.x) * smoothstep(1.0,0.96,vUv.x) * smoothstep(0.0,0.04,vUv.y) * smoothstep(1.0,0.96,vUv.y);
+            gl_FragColor = vec4(u_color, u_alpha*(0.75+0.25*edge));
+          }
+        `,
+        transparent: true,
+        side: THREE.DoubleSide,
+      });
+    }
+    const m = new THREE.Mesh(geo, mat);
+    root.add(m);
+    return m;
+  });
+
+  // Hinge mechanism — metallic cylinder in the crease
+  const hinge = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.14, H*1.02, 32),
+    new THREE.MeshPhysicalMaterial({ color: 0x888892, metalness: 1.0, roughness: 0.2, clearcoat: 0.6 })
+  );
+  hinge.rotation.x = Math.PI/2;
+  hinge.position.set(0, 0, -0.15);
+  root.add(hinge);
+
+  // Ground + shadow
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(18,18),
+    new THREE.MeshStandardMaterial({ color: 0x05050c, metalness: 0.6, roughness: 0.5 })
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -3;
+  scene.add(floor);
+
+  root.position.y = -0.5;
+
+  const { composer } = makePostFX(renderer, scene, camera, container, 0.8, 0.8, 0.8);
+
+  const onResize = () => {
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h); composer.setSize(w, h);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', onResize);
+
+  let t = 0;
+  function animate(){
+    t += 1/60;
+    sharedU.u_time.value = t;
+    // fold 0..1 sine
+    const f = (Math.sin(t*0.4) + 1) / 2;
+    sharedU.u_fold.value = f;
+    root.rotation.y = Math.sin(t*0.15) * 0.3;
+    controls.update();
+    composer.render();
+    return requestAnimationFrame(animate);
+  }
+  animate();
+
+  const info = document.createElement('div');
+  info.className = 'overlay';
+  info.innerHTML = `
+    <div class="tag">SCENE 05</div>
+    <h3>Foldable · Waterdrop Hinge</h3>
+    <p>플렉서블 OLED가 워터드롭 힌지 곡률(R=0.15)을 따라 반복적으로 접힘. 버텍스 셰이더로 실제 폴딩 기하 시뮬레이션.</p>
+    <div class="specs">HINGE <span>Teardrop · 1.4R</span><br/>CYCLE <span>200,000 folds</span></div>`;
+  container.appendChild(info);
+}
+
+// ============================================================
+// Tab controller
+// ============================================================
+const SAMPLES = [
+  { id: 'hero',     name: '01 · HERO DEVICE',    build: buildHero },
+  { id: 'exploded', name: '02 · LAYER STACK',    build: buildExploded },
+  { id: 'pixel',    name: '03 · SUB-PIXEL',      build: buildSubpixel },
+  { id: 'cross',    name: '04 · CROSS-SECTION',  build: buildCross },
+  { id: 'fold',     name: '05 · FOLDABLE',       build: buildFold },
+];
+
+const main = document.getElementById('main');
+const tabsEl = document.getElementById('tabs');
+const loader = document.getElementById('loader');
+const built = new Set();
+
+SAMPLES.forEach((s, i) => {
+  const div = document.createElement('div');
+  div.className = 'scene' + (i === 0 ? ' active' : '');
+  main.appendChild(div);
+
+  const btn = document.createElement('button');
+  btn.className = 'tab' + (i === 0 ? ' active' : '');
+  btn.textContent = s.name;
+  btn.onclick = () => activate(s.id);
+  tabsEl.appendChild(btn);
+
+  s._btn = btn; s._div = div;
+});
+
+function activate(id) {
+  SAMPLES.forEach(s => {
+    const on = s.id === id;
+    s._btn.classList.toggle('active', on);
+    s._div.classList.toggle('active', on);
+    if (on && !built.has(id)) {
+      loader.classList.remove('hide');
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          s.build(s._div);
+          built.add(id);
+          window.dispatchEvent(new Event('resize'));
+          setTimeout(() => loader.classList.add('hide'), 200);
+        }, 30);
+      });
+    } else if (on) {
+      window.dispatchEvent(new Event('resize'));
+    }
+  });
+}
+
+// boot
+SAMPLES[0].build(SAMPLES[0]._div);
+built.add(SAMPLES[0].id);
+setTimeout(() => loader.classList.add('hide'), 600);
+</script>
+</body>
+</html>
